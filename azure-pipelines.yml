@@ -1,0 +1,320 @@
+trigger:
+  branches:
+    include:
+      - main
+      - master
+
+# Build en tu agente self-hosted
+pool:
+  name: SelfHosted
+
+variables:
+  rg: 'rg-tp05-ingsoft3-2025'
+  azureServiceConnection: 'azure-tp05-connection'
+
+  # Web Apps
+  beQaApp:   'webapp-tp05-back-QA-verzini-eguia'
+  beProdApp: 'webapp-tp05-back-PROD-verzini-eguia'
+  feQaApp:   'webapp-tp05-front-QA-verzini-eguia'
+  feProdApp: 'webapp-tp05-front-PROD-verzini-eguia'
+
+  # MySQL QA
+  qaMysqlHost: 'mysql-tp05-qa-verzini-eguia.mysql.database.azure.com'
+  qaMysqlUser: 'qa_user'
+  qaMysqlPass: 'Qa#2025!strong'
+  qaMysqlDb:   'cursos_qa'
+
+  # MySQL PROD
+  prodMysqlHost: 'mysql-tp05-prod-verzini-eguia.mysql.database.azure.com'
+  prodMysqlUser: 'prod_user'
+  prodMysqlPass: 'Prod#2025!strong'
+  prodMysqlDb:   'cursos_prod'
+
+stages:
+
+# ===================== BUILD =====================
+- stage: Build
+  displayName: "CI - Test & Build Back + CI Front (fuente)"
+  jobs:
+
+    # --------- FRONTEND ---------
+    - job: Build_Front
+      displayName: "CI Frontend (solo fuente, build en Azure)"
+      steps:
+        - checkout: self
+
+        - task: NodeTool@0
+          displayName: "Use Node 20.x"
+          inputs:
+            versionSpec: '20.x'
+
+        - script: |
+            set -e
+            cd final/frontend
+            npm ci
+            npm test
+            # Limpieza: no queremos subir node_modules ni .next
+            rm -rf node_modules .next
+          displayName: "npm ci + test (front) + limpiar node_modules/.next"
+
+        - publish: final/frontend
+          artifact: frontsrc
+
+    # --------- BACKEND ---------
+    - job: Build_Back
+      displayName: "Test + Build Backend (Go) → be.zip"
+      dependsOn: Build_Front
+      steps:
+        - checkout: self
+
+        - task: GoTool@0
+          inputs:
+            version: '1.22.5'
+
+        - script: |
+            set -e
+            cd final/backend
+            go mod download
+            go test ./... -v
+          displayName: "go test (back)"
+
+        - script: |
+            set -e
+            cd final/backend
+
+            cat > startup.sh << 'EOF'
+            #!/bin/sh
+            chmod +x /home/site/wwwroot/server
+            exec /home/site/wwwroot/server
+            EOF
+            chmod +x startup.sh
+
+            CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o server .
+            zip -r be.zip server startup.sh
+          displayName: "Build Go (Linux) + zip (be.zip)"
+
+        - publish: final/backend/be.zip
+          artifact: bezip
+
+
+# ===================== DEPLOY QA =====================
+- stage: Deploy_QA
+  displayName: "CD - Deploy QA (Back + Front) + Healthchecks"
+  dependsOn: Build
+  pool:
+    vmImage: 'ubuntu-latest'
+  jobs:
+    - deployment: Deploy_QA
+      environment: 'QA'
+      strategy:
+        runOnce:
+          deploy:
+            steps:
+              - download: current
+                artifact: bezip
+              - download: current
+                artifact: frontsrc
+
+              # ------ BACKEND QA ------
+              - task: AzureWebApp@1
+                displayName: "Zip Deploy BACKEND → QA"
+                inputs:
+                  azureSubscription: '$(azureServiceConnection)'
+                  appName: '$(beQaApp)'
+                  package: '$(Pipeline.Workspace)/bezip/be.zip'
+
+              - task: AzureCLI@2
+                displayName: "Startup Command + App Settings BACKEND (QA)"
+                inputs:
+                  azureSubscription: '$(azureServiceConnection)'
+                  scriptType: bash
+                  scriptLocation: inlineScript
+                  inlineScript: |
+                    set -e
+                    az webapp config set -g $(rg) -n $(beQaApp) --startup-file "/home/site/wwwroot/startup.sh"
+                    az webapp config appsettings set -g $(rg) -n $(beQaApp) --settings \
+                      PORT=8080 WEBSITES_PORT=8080 \
+                      MYSQL_HOST="$(qaMysqlHost)" \
+                      MYSQL_USER="$(qaMysqlUser)" \
+                      MYSQL_PASSWORD="$(qaMysqlPass)" \
+                      MYSQL_DB="$(qaMysqlDb)"
+
+              - task: AzureCLI@2
+                displayName: "Health check BACKEND QA"
+                inputs:
+                  azureSubscription: '$(azureServiceConnection)'
+                  scriptType: bash
+                  scriptLocation: inlineScript
+                  inlineScript: |
+                    set -e
+                    HOST=$(az webapp show -g $(rg) -n $(beQaApp) --query defaultHostName -o tsv)
+                    echo "Host QA (BACK): $HOST"
+                    curl -fsS --retry 10 --retry-delay 5 "https://$HOST/healthz"
+                    echo "Backend QA OK"
+
+              # ------ FRONTEND QA ------
+              - task: AzureCLI@2
+                displayName: "App Settings FRONTEND QA (sin tocar NEXT_PUBLIC_API_URL)"
+                inputs:
+                  azureSubscription: '$(azureServiceConnection)'
+                  scriptType: bash
+                  scriptLocation: inlineScript
+                  inlineScript: |
+                    set -e
+                    # Runtime Node 20 + Oryx build + puerto
+                    az webapp config set -g $(rg) -n $(feQaApp) --linux-fx-version "NODE|20-lts"
+                    az webapp config appsettings set -g $(rg) -n $(feQaApp) --settings \
+                      SCM_DO_BUILD_DURING_DEPLOYMENT=true \
+                      WEBSITE_NODE_DEFAULT_VERSION=20 \
+                      PORT=8080 \
+                      WEBSITES_PORT=8080 \
+                      ORYX_DISABLE_NODE_MODULES_TAR_GZ=true \
+                      ORYX_NPM_INSTALL_OPTIONS="--no-audit --no-fund"
+                    # Usar package.json (npm start) – no sobreescribimos NEXT_PUBLIC_API_URL
+                    az webapp config set -g $(rg) -n $(feQaApp) --startup-file ""
+                    # Por si quedó de despliegues anteriores
+                    az webapp config appsettings delete -g $(rg) -n $(feQaApp) --setting-names WEBSITE_RUN_FROM_PACKAGE || true
+
+              - task: AzureWebApp@1
+                displayName: "Deploy FRONT (Oryx build) → QA"
+                inputs:
+                  azureSubscription: '$(azureServiceConnection)'
+                  appName: '$(feQaApp)'
+                  package: '$(Pipeline.Workspace)/frontsrc'
+
+              - task: AzureCLI@2
+                displayName: "Reiniciar FRONTEND QA"
+                inputs:
+                  azureSubscription: '$(azureServiceConnection)'
+                  scriptType: bash
+                  scriptLocation: inlineScript
+                  inlineScript: az webapp restart -g $(rg) -n $(feQaApp)
+
+              - task: AzureCLI@2
+                displayName: "Health check FRONTEND QA"
+                inputs:
+                  azureSubscription: '$(azureServiceConnection)'
+                  scriptType: bash
+                  scriptLocation: inlineScript
+                  inlineScript: |
+                    set -e
+                    HOST=$(az webapp show -g $(rg) -n $(feQaApp) --query defaultHostName -o tsv)
+                    echo "Host FE QA: $HOST"
+                    for i in $(seq 1 60); do
+                      code=$(curl -sSI "https://$HOST" | head -n1 | awk '{print $2}')
+                      echo "Intento $i → HTTP $code"
+                      if [ "$code" -ge 200 ] && [ "$code" -lt 400 ]; then exit 0; fi
+                      sleep 6
+                    done
+                    echo "Frontend QA no respondió 2xx/3xx a tiempo"
+                    exit 1
+
+
+# ===================== DEPLOY PROD =====================
+- stage: Deploy_PROD
+  displayName: "CD - Deploy PROD (con aprobación) + Healthchecks"
+  dependsOn: Deploy_QA
+  pool:
+    vmImage: 'ubuntu-latest'
+  jobs:
+    - deployment: Deploy_PROD
+      environment: 'PROD'
+      strategy:
+        runOnce:
+          deploy:
+            steps:
+              - download: current
+                artifact: bezip
+              - download: current
+                artifact: frontsrc
+
+              # ------ BACKEND PROD ------
+              - task: AzureWebApp@1
+                displayName: "Zip Deploy BACKEND → PROD"
+                inputs:
+                  azureSubscription: '$(azureServiceConnection)'
+                  appName: '$(beProdApp)'
+                  package: '$(Pipeline.Workspace)/bezip/be.zip'
+
+              - task: AzureCLI@2
+                displayName: "Startup Command + App Settings BACKEND (PROD)"
+                inputs:
+                  azureSubscription: '$(azureServiceConnection)'
+                  scriptType: bash
+                  scriptLocation: inlineScript
+                  inlineScript: |
+                    set -e
+                    az webapp config set -g $(rg) -n $(beProdApp) --startup-file "/home/site/wwwroot/startup.sh"
+                    az webapp config appsettings set -g $(rg) -n $(beProdApp) --settings \
+                      PORT=8080 WEBSITES_PORT=8080 \
+                      MYSQL_HOST="$(prodMysqlHost)" \
+                      MYSQL_USER="$(prodMysqlUser)" \
+                      MYSQL_PASSWORD="$(prodMysqlPass)" \
+                      MYSQL_DB="$(prodMysqlDb)"
+
+              - task: AzureCLI@2
+                displayName: "Health check BACKEND PROD"
+                inputs:
+                  azureSubscription: '$(azureServiceConnection)'
+                  scriptType: bash
+                  scriptLocation: inlineScript
+                  inlineScript: |
+                    set -e
+                    HOST=$(az webapp show -g $(rg) -n $(beProdApp) --query defaultHostName -o tsv)
+                    echo "Host PROD (BACK): $HOST"
+                    curl -fsS --retry 10 --retry-delay 5 "https://$HOST/healthz"
+                    echo "Backend PROD OK"
+
+              # ------ FRONTEND PROD ------
+              - task: AzureCLI@2
+                displayName: "App Settings FRONTEND PROD (sin tocar NEXT_PUBLIC_API_URL)"
+                inputs:
+                  azureSubscription: '$(azureServiceConnection)'
+                  scriptType: bash
+                  scriptLocation: inlineScript
+                  inlineScript: |
+                    set -e
+                    az webapp config set -g $(rg) -n $(feProdApp) --linux-fx-version "NODE|20-lts"
+                    az webapp config appsettings set -g $(rg) -n $(feProdApp) --settings \
+                      SCM_DO_BUILD_DURING_DEPLOYMENT=true \
+                      WEBSITE_NODE_DEFAULT_VERSION=20 \
+                      PORT=8080 \
+                      WEBSITES_PORT=8080 \
+                      ORYX_DISABLE_NODE_MODULES_TAR_GZ=true \
+                      ORYX_NPM_INSTALL_OPTIONS="--no-audit --no-fund"
+                    az webapp config set -g $(rg) -n $(feProdApp) --startup-file ""
+                    az webapp config appsettings delete -g $(rg) -n $(feProdApp) --setting-names WEBSITE_RUN_FROM_PACKAGE || true
+
+              - task: AzureWebApp@1
+                displayName: "Deploy FRONT (Oryx build) → PROD"
+                inputs:
+                  azureSubscription: '$(azureServiceConnection)'
+                  appName: '$(feProdApp)'
+                  package: '$(Pipeline.Workspace)/frontsrc'
+
+              - task: AzureCLI@2
+                displayName: "Reiniciar FRONTEND PROD"
+                inputs:
+                  azureSubscription: '$(azureServiceConnection)'
+                  scriptType: bash
+                  scriptLocation: inlineScript
+                  inlineScript: az webapp restart -g $(rg) -n $(feProdApp)
+
+              - task: AzureCLI@2
+                displayName: "Health check FRONTEND PROD"
+                inputs:
+                  azureSubscription: '$(azureServiceConnection)'
+                  scriptType: bash
+                  scriptLocation: inlineScript
+                  inlineScript: |
+                    set -e
+                    HOST=$(az webapp show -g $(rg) -n $(feProdApp) --query defaultHostName -o tsv)
+                    echo "Host FE PROD: $HOST"
+                    for i in $(seq 1 60); do
+                      code=$(curl -sSI "https://$HOST" | head -n1 | awk '{print $2}')
+                      echo "Intento $i → HTTP $code"
+                      if [ "$code" -ge 200 ] && [ "$code" -lt 400 ]; then exit 0; fi
+                      sleep 6
+                    done
+                    echo "Frontend PROD no respondió 2xx/3xx a tiempo"
+                    exit 1
