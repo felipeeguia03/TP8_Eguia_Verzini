@@ -1,0 +1,34 @@
+# Ignorar dependencias
+node_modules/
+**/node_modules/
+
+# Archivos de build
+dist/
+build/
+.next/
+out/
+
+# Archivos del sistema
+.DS_Store
+.env
+
+# Archivos temporales y logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Archivos de cobertura de tests
+coverage/
+*.lcov
+
+# Archivos de Docker y compilaciones
+*.dockerfile
+docker-compose.override.yml
+
+# Archivos de Go
+bin/
+*.exe
+*.test
+*.out
+
