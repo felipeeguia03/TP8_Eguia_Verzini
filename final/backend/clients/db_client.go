@@ -38,9 +38,12 @@ func init() {
 		sslMode = "require"
 	}
 
-	// Formato DSN para PostgreSQL: host=host user=user password=password dbname=dbname port=port sslmode=mode
-	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=%s",
-		dbHost, dbUser, dbPassword, dbName, dbPort, sslMode)
+	// Schema para separar QA y PROD en la misma BD
+	dbSchema := getEnv("DB_SCHEMA", "public")
+	
+	// Formato DSN para PostgreSQL: host=host user=user password=password dbname=dbname port=port sslmode=mode search_path=schema
+	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=%s search_path=%s",
+		dbHost, dbUser, dbPassword, dbName, dbPort, sslMode, dbSchema)
 
 	const maxRetries = 10
 	var lastErr error
@@ -61,6 +64,14 @@ func init() {
 }
 
 func StartDB() {
+	// Obtener schema desde env (qa, prod, o public por defecto)
+	dbSchema := getEnv("DB_SCHEMA", "public")
+	
+	// Crear schema si no existe (usando conexión sin search_path)
+	if dbSchema != "public" {
+		DBClient.Exec(fmt.Sprintf("CREATE SCHEMA IF NOT EXISTS %s", dbSchema))
+	}
+
 	var (
 		user         dao.User
 		course       dao.Course
@@ -68,9 +79,12 @@ func StartDB() {
 		comment      dao.Comment
 		file         dao.File
 	)
+	
 	if err := DBClient.AutoMigrate(&user, &course, &subscription, &comment, &file); err != nil {
 		panic(fmt.Errorf("error creating entities: %v", err))
 	}
+	
+	log.WithFields(log.Fields{"schema": dbSchema}).Info("Database schema initialized")
 }
 
 func getEnv(k, def string) string {
