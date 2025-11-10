@@ -58,10 +58,15 @@ jobs:
           cache-to: type=inline,mode=max
 
       - name: Trigger Render Backend Deploy
-        if: ${{ secrets.RENDER_BACKEND_WEBHOOK_URL != '' }}
         continue-on-error: true
+        env:
+          WEBHOOK_URL: ${{ secrets.RENDER_BACKEND_WEBHOOK_URL }}
         run: |
-          curl -X POST "${{ secrets.RENDER_BACKEND_WEBHOOK_URL }}" || echo "Webhook failed but continuing"
+          if [ -n "$WEBHOOK_URL" ]; then
+            curl -X POST "$WEBHOOK_URL" || echo "Webhook failed but continuing"
+          else
+            echo "RENDER_BACKEND_WEBHOOK_URL not configured, skipping"
+          fi
 
   build-frontend:
     name: Build and Push Frontend Image
@@ -106,7 +111,12 @@ jobs:
           cache-to: type=inline,mode=max
 
       - name: Trigger Render Frontend Deploy
-        if: ${{ secrets.RENDER_FRONTEND_WEBHOOK_URL != '' }}
         continue-on-error: true
+        env:
+          WEBHOOK_URL: ${{ secrets.RENDER_FRONTEND_WEBHOOK_URL }}
         run: |
-          curl -X POST "${{ secrets.RENDER_FRONTEND_WEBHOOK_URL }}" || echo "Webhook failed but continuing"
+          if [ -n "$WEBHOOK_URL" ]; then
+            curl -X POST "$WEBHOOK_URL" || echo "Webhook failed but continuing"
+          else
+            echo "RENDER_FRONTEND_WEBHOOK_URL not configured, skipping"
+          fi
