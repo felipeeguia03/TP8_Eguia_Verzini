@@ -2,7 +2,7 @@ name: Notify Render on Image Update
 
 on:
   workflow_run:
-    workflows: ["Build and Push Docker Images to ACR"]
+    workflows: ["Build and Push Docker Images to GHCR"]
     types:
       - completed
     branches:
@@ -14,13 +14,29 @@ jobs:
     name: Trigger Render Deploy
     runs-on: ubuntu-latest
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    permissions:
+      contents: read
     steps:
       - name: Trigger Backend Deploy
-        if: ${{ secrets.RENDER_BACKEND_WEBHOOK_URL }}
+        continue-on-error: true
+        env:
+          WEBHOOK_URL: ${{ secrets.RENDER_BACKEND_WEBHOOK_URL }}
         run: |
-          curl -X POST "${{ secrets.RENDER_BACKEND_WEBHOOK_URL }}"
+          if [ -n "$WEBHOOK_URL" ] && [ "$WEBHOOK_URL" != "" ]; then
+            curl -X POST "$WEBHOOK_URL" || true
+            echo "Backend webhook triggered"
+          else
+            echo "RENDER_BACKEND_WEBHOOK_URL not configured, skipping"
+          fi
 
       - name: Trigger Frontend Deploy
-        if: ${{ secrets.RENDER_FRONTEND_WEBHOOK_URL }}
+        continue-on-error: true
+        env:
+          WEBHOOK_URL: ${{ secrets.RENDER_FRONTEND_WEBHOOK_URL }}
         run: |
-          curl -X POST "${{ secrets.RENDER_FRONTEND_WEBHOOK_URL }}"
+          if [ -n "$WEBHOOK_URL" ] && [ "$WEBHOOK_URL" != "" ]; then
+            curl -X POST "$WEBHOOK_URL" || true
+            echo "Frontend webhook triggered"
+          else
+            echo "RENDER_FRONTEND_WEBHOOK_URL not configured, skipping"
+          fi
