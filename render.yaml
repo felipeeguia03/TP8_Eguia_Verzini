@@ -1,0 +1,62 @@
+# Render Blueprint para despliegue automático
+# Este archivo permite crear servicios en Render desde el código
+# Ve a: https://dashboard.render.com/new/blueprint
+#
+# NOTA: Este blueprint está configurado para construir desde Dockerfile.
+# Si prefieres usar imágenes de GHCR, configura manualmente en el dashboard:
+# - Registry: Docker Registry
+# - Image URL: ghcr.io/[tu-usuario]/backend:latest
+# - Image URL: ghcr.io/[tu-usuario]/frontend:latest
+
+services:
+  # Backend Service
+  - type: web
+    name: tp8-backend
+    env: docker
+    dockerfilePath: ./final/backend/Dockerfile
+    dockerContext: ./final/backend
+    plan: free # free, starter, standard, pro según necesites
+    region: oregon # o la región más cercana
+    envVars:
+      - key: PORT
+        value: 8080
+      - key: MYSQL_HOST
+        sync: false # Debes configurarlo manualmente
+      - key: MYSQL_PORT
+        value: "3306"
+      - key: MYSQL_USER
+        sync: false
+      - key: MYSQL_PASSWORD
+        sync: false
+      - key: MYSQL_DB
+        sync: false
+      - key: MYSQL_SSL
+        value: "false"
+    healthCheckPath: /healthz
+
+  # Frontend Service
+  - type: web
+    name: tp8-frontend
+    env: docker
+    dockerfilePath: ./final/frontend/Dockerfile
+    dockerContext: ./final/frontend
+    plan: free
+    region: oregon
+    envVars:
+      - key: PORT
+        value: 8080
+      - key: NEXT_PUBLIC_API_URL
+        fromService:
+          type: web
+          name: tp8-backend
+          property: host
+    buildCommand: "" # Docker build se hace automáticamente
+    startCommand: "" # Docker run se hace automáticamente
+
+# Alternativa: Si prefieres usar imágenes de GHCR en lugar de construir aquí,
+# configura manualmente en el dashboard de Render con:
+# - Registry: Docker Registry
+# - Image: ghcr.io/[tu-usuario-github]/backend:latest
+# - Image: ghcr.io/[tu-usuario-github]/frontend:latest
+# - Credentials: Tu usuario de GitHub y un Personal Access Token
+

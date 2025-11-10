@@ -1,0 +1,36 @@
+# Binarios compilados
+*.exe
+backend.exe
+server
+
+# Archivos de desarrollo
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Archivos de test
+*_test.go
+test/
+
+# Archivos temporales
+*.tmp
+*.log
+
+# Git
+.git/
+.gitignore
+
+# Docker
+Dockerfile
+.dockerignore
+docker-compose.yml
+
+# Uploads (se crean en runtime)
+uploads/*
+
+# Archivos de sistema
+.DS_Store
+Thumbs.db
+

@@ -1,0 +1,26 @@
+name: Notify Render on Image Update
+
+on:
+  workflow_run:
+    workflows: ["Build and Push Docker Images to ACR"]
+    types:
+      - completed
+    branches:
+      - main
+      - master
+
+jobs:
+  notify-render:
+    name: Trigger Render Deploy
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - name: Trigger Backend Deploy
+        if: ${{ secrets.RENDER_BACKEND_WEBHOOK_URL }}
+        run: |
+          curl -X POST "${{ secrets.RENDER_BACKEND_WEBHOOK_URL }}"
+
+      - name: Trigger Frontend Deploy
+        if: ${{ secrets.RENDER_FRONTEND_WEBHOOK_URL }}
+        run: |
+          curl -X POST "${{ secrets.RENDER_FRONTEND_WEBHOOK_URL }}"
