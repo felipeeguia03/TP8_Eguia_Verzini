@@ -9,11 +9,9 @@ import (
 	"backend/dao"
 
 	log "github.com/sirupsen/logrus"
-	"gorm.io/driver/mysql"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
-
-const defaultConnFmt = "%s:%s@tcp(%s:%d)/%s?parseTime=true&charset=utf8mb4,utf8"
 
 var (
 	DBClient *gorm.DB
@@ -21,31 +19,34 @@ var (
 
 // Se mantiene init() para NO romper tu ejecución local.
 // Lee env si existen; si no, usa tus defaults locales.
-// Reintenta algunas veces para Azure (DB tarda).
+// Reintenta algunas veces para Render (DB tarda).
 func init() {
 	// Defaults (tu local)
-	dbName := getEnv("MYSQL_DB", "final")
-	dbUser := getEnv("MYSQL_USER", "root")
-	dbPassword := getEnv("MYSQL_PASSWORD", "")
-	dbHost := getEnv("MYSQL_HOST", "127.0.0.1")
-	portStr := getEnv("MYSQL_PORT", "3306")
+	dbName := getEnv("DB_NAME", "final_clj4")
+	dbUser := getEnv("DB_USER", "admin")
+	dbPassword := getEnv("DB_PASSWORD", "")
+	dbHost := getEnv("DB_HOST", "127.0.0.1")
+	portStr := getEnv("DB_PORT", "5432")
 	dbPort, err := strconv.Atoi(portStr)
 	if err != nil {
-		dbPort = 3306
+		dbPort = 5432
 	}
 
-	dsn := fmt.Sprintf(defaultConnFmt, dbUser, dbPassword, dbHost, dbPort, dbName)
-
-	// TLS solo si te lo piden (Azure): MYSQL_SSL=true
-	if getEnv("MYSQL_SSL", "false") == "true" {
-		dsn += "&tls=true"
+	// SSL mode para PostgreSQL
+	sslMode := getEnv("DB_SSLMODE", "require")
+	if sslMode == "" {
+		sslMode = "require"
 	}
+
+	// Formato DSN para PostgreSQL: host=host user=user password=password dbname=dbname port=port sslmode=mode
+	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=%s",
+		dbHost, dbUser, dbPassword, dbName, dbPort, sslMode)
 
 	const maxRetries = 10
 	var lastErr error
 
 	for i := 1; i <= maxRetries; i++ {
-		db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
+		db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 		if err == nil {
 			DBClient = db
 			log.WithFields(log.Fields{"host": dbHost, "db": dbName, "attempt": i}).Info("DB connected")
