@@ -55,9 +55,7 @@ jobs:
             ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.BACKEND_IMAGE }}:latest
             ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.BACKEND_IMAGE }}:${{ github.sha }}
           cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.BACKEND_IMAGE }}:latest
-          cache-to: type=inline
-          build-args: |
-            BUILDKIT_INLINE_CACHE=1
+          cache-to: type=inline,mode=max
 
   build-frontend:
     name: Build and Push Frontend Image
@@ -99,4 +97,4 @@ jobs:
           build-args: |
             NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL || 'http://localhost:8080' }}
           cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.FRONTEND_IMAGE }}:latest
-          cache-to: type=inline
+          cache-to: type=inline,mode=max
