@@ -3,12 +3,14 @@ name: Build and Push Docker Images to GHCR
 on:
   push:
     branches:
-      - main
-      - master
+      - main      # PROD
+      - master    # PROD
+      - qa        # QA
   pull_request:
     branches:
       - main
       - master
+      - qa
 
 env:
   REGISTRY: ghcr.io
@@ -45,6 +47,20 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Determine environment
+        id: env
+        run: |
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]] || [[ "${{ github.ref }}" == "refs/heads/master" ]]; then
+            echo "environment=prod" >> $GITHUB_OUTPUT
+            echo "tag=prod" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == "refs/heads/qa" ]]; then
+            echo "environment=qa" >> $GITHUB_OUTPUT
+            echo "tag=qa" >> $GITHUB_OUTPUT
+          else
+            echo "environment=dev" >> $GITHUB_OUTPUT
+            echo "tag=dev" >> $GITHUB_OUTPUT
+          fi
+
       - name: Build and push backend image
         uses: docker/build-push-action@v5
         with:
@@ -52,20 +68,35 @@ jobs:
           file: ./final/backend/Dockerfile
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.BACKEND_IMAGE }}:latest
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.BACKEND_IMAGE }}:${{ github.sha }}
-          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.BACKEND_IMAGE }}:latest
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.BACKEND_IMAGE }}:${{ steps.env.outputs.tag }}
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.BACKEND_IMAGE }}:${{ steps.env.outputs.tag }}-${{ github.sha }}
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.BACKEND_IMAGE }}:${{ steps.env.outputs.tag }}
           cache-to: type=inline,mode=max
 
-      - name: Trigger Render Backend Deploy
+      - name: Trigger Render Backend Deploy (PROD)
+        if: steps.env.outputs.environment == 'prod'
         continue-on-error: true
         env:
-          WEBHOOK_URL: ${{ secrets.RENDER_BACKEND_WEBHOOK_URL }}
+          WEBHOOK_URL: ${{ secrets.RENDER_BACKEND_WEBHOOK_URL_PROD }}
         run: |
           if [ -n "$WEBHOOK_URL" ]; then
             curl -X POST "$WEBHOOK_URL" || echo "Webhook failed but continuing"
+            echo "✅ Triggered PROD backend deploy"
           else
-            echo "RENDER_BACKEND_WEBHOOK_URL not configured, skipping"
+            echo "⚠️ RENDER_BACKEND_WEBHOOK_URL_PROD not configured, skipping"
+          fi
+
+      - name: Trigger Render Backend Deploy (QA)
+        if: steps.env.outputs.environment == 'qa'
+        continue-on-error: true
+        env:
+          WEBHOOK_URL: ${{ secrets.RENDER_BACKEND_WEBHOOK_URL_QA }}
+        run: |
+          if [ -n "$WEBHOOK_URL" ]; then
+            curl -X POST "$WEBHOOK_URL" || echo "Webhook failed but continuing"
+            echo "✅ Triggered QA backend deploy"
+          else
+            echo "⚠️ RENDER_BACKEND_WEBHOOK_URL_QA not configured, skipping"
           fi
 
   build-frontend:
@@ -96,6 +127,31 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Determine environment
+        id: env
+        run: |
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]] || [[ "${{ github.ref }}" == "refs/heads/master" ]]; then
+            echo "environment=prod" >> $GITHUB_OUTPUT
+            echo "tag=prod" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == "refs/heads/qa" ]]; then
+            echo "environment=qa" >> $GITHUB_OUTPUT
+            echo "tag=qa" >> $GITHUB_OUTPUT
+          else
+            echo "environment=dev" >> $GITHUB_OUTPUT
+            echo "tag=dev" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Determine API URL
+        id: api_url
+        run: |
+          if [[ "${{ steps.env.outputs.environment }}" == "prod" ]]; then
+            echo "url=${{ secrets.NEXT_PUBLIC_API_URL_PROD || 'https://tp8-backend.onrender.com' }}" >> $GITHUB_OUTPUT
+          elif [[ "${{ steps.env.outputs.environment }}" == "qa" ]]; then
+            echo "url=${{ secrets.NEXT_PUBLIC_API_URL_QA || 'https://tp8-backend-qa.onrender.com' }}" >> $GITHUB_OUTPUT
+          else
+            echo "url=http://localhost:8080" >> $GITHUB_OUTPUT
+          fi
+
       - name: Build and push frontend image
         uses: docker/build-push-action@v5
         with:
@@ -103,20 +159,35 @@ jobs:
           file: ./final/frontend/Dockerfile
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.FRONTEND_IMAGE }}:latest
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.FRONTEND_IMAGE }}:${{ steps.env.outputs.tag }}
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.FRONTEND_IMAGE }}:${{ steps.env.outputs.tag }}-${{ github.sha }}
           build-args: |
-            NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL || 'http://localhost:8080' }}
-          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.FRONTEND_IMAGE }}:latest
+            NEXT_PUBLIC_API_URL=${{ steps.api_url.outputs.url }}
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.FRONTEND_IMAGE }}:${{ steps.env.outputs.tag }}
           cache-to: type=inline,mode=max
 
-      - name: Trigger Render Frontend Deploy
+      - name: Trigger Render Frontend Deploy (PROD)
+        if: steps.env.outputs.environment == 'prod'
         continue-on-error: true
         env:
-          WEBHOOK_URL: ${{ secrets.RENDER_FRONTEND_WEBHOOK_URL }}
+          WEBHOOK_URL: ${{ secrets.RENDER_FRONTEND_WEBHOOK_URL_PROD }}
         run: |
           if [ -n "$WEBHOOK_URL" ]; then
             curl -X POST "$WEBHOOK_URL" || echo "Webhook failed but continuing"
+            echo "✅ Triggered PROD frontend deploy"
           else
-            echo "RENDER_FRONTEND_WEBHOOK_URL not configured, skipping"
+            echo "⚠️ RENDER_FRONTEND_WEBHOOK_URL_PROD not configured, skipping"
+          fi
+
+      - name: Trigger Render Frontend Deploy (QA)
+        if: steps.env.outputs.environment == 'qa'
+        continue-on-error: true
+        env:
+          WEBHOOK_URL: ${{ secrets.RENDER_FRONTEND_WEBHOOK_URL_QA }}
+        run: |
+          if [ -n "$WEBHOOK_URL" ]; then
+            curl -X POST "$WEBHOOK_URL" || echo "Webhook failed but continuing"
+            echo "✅ Triggered QA frontend deploy"
+          else
+            echo "⚠️ RENDER_FRONTEND_WEBHOOK_URL_QA not configured, skipping"
           fi
