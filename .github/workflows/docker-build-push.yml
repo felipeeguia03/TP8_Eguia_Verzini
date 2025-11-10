@@ -57,6 +57,12 @@ jobs:
           cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.BACKEND_IMAGE }}:latest
           cache-to: type=inline,mode=max
 
+      - name: Trigger Render Backend Deploy
+        if: ${{ secrets.RENDER_BACKEND_WEBHOOK_URL != '' }}
+        continue-on-error: true
+        run: |
+          curl -X POST "${{ secrets.RENDER_BACKEND_WEBHOOK_URL }}" || echo "Webhook failed but continuing"
+
   build-frontend:
     name: Build and Push Frontend Image
     runs-on: ubuntu-latest
@@ -98,3 +104,9 @@ jobs:
             NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL || 'http://localhost:8080' }}
           cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.FRONTEND_IMAGE }}:latest
           cache-to: type=inline,mode=max
+
+      - name: Trigger Render Frontend Deploy
+        if: ${{ secrets.RENDER_FRONTEND_WEBHOOK_URL != '' }}
+        continue-on-error: true
+        run: |
+          curl -X POST "${{ secrets.RENDER_FRONTEND_WEBHOOK_URL }}" || echo "Webhook failed but continuing"
