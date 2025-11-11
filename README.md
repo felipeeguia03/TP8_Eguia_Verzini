@@ -18,6 +18,7 @@ Plataforma web para gestión de cursos online desarrollada con **Next.js** (Fron
 - **Registry**: GitHub Container Registry (GHCR)
 - **Hosting**: Render (Frontend y Backend)
 - **Base de Datos**: Railway (PostgreSQL)
+  dsfsdf
 
 ### Diagrama de Arquitectura
 
