@@ -79,7 +79,7 @@ Plataforma web para gestión de cursos online desarrollada con **Next.js** (Fron
 │  │  Servicio Frontend QA                                 │  │
 │  │  ├─ Pull imagen: ghcr.io/user/frontend:qa             │  │
 │  │  ├─ Deploy contenedor                                 │  │
-│  │  └─ URL: https://frontend-qa-xxx.onrender.com        │  │
+│  │  └─ URL: https://frontend-qa-eop0.onrender.com        │  │
 │  │                                                       │  │
 │  │  Servicio Backend PROD (backend-prod-2hc0)           │  │
 │  │  ├─ Pull imagen: ghcr.io/user/backend:prod           │  │
@@ -98,7 +98,7 @@ Plataforma web para gestión de cursos online desarrollada con **Next.js** (Fron
 ┌─────────────────────────────────────────────────────────────┐
 │         POSTGRESQL (Railway Database)                         │
 │  ┌──────────────────────────────────────────────────────┐  │
-│  │  Base de datos QA: final_clj4                        │  │
+│  │  Base de datos QA: final_clj4 QA                    │  │
 │  │  Host: turntable.proxy.rlwy.net                      │  │
 │  │                                                       │  │
 │  │  Base de datos PROD: final_clj4                      │  │
@@ -477,8 +477,8 @@ NEXT_PUBLIC_API_URL=https://backend-prod-2hc0.onrender.com
 
 ### Frontend QA
 
-- **Nombre**: `frontend-qa-xxx`
-- **URL**: `https://frontend-qa-xxx.onrender.com`
+- **Nombre**: `frontend-qa-eop0`
+- **URL**: `https://frontend-qa-eop0.onrender.com`
 - **Imagen**: `ghcr.io/felipeeguia03/frontend:qa`
 - **API URL**: `https://backend-qa-1.onrender.com`
 - **Plan**: Free
@@ -647,7 +647,7 @@ git push origin main
 
 ### QA
 
-- Frontend: `https://frontend-qa-xxx.onrender.com`
+- Frontend: `https://frontend-qa-eop0.onrender.com`
 - Backend: `https://backend-qa-1.onrender.com`
 
 ### PROD
