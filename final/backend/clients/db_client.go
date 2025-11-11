@@ -55,9 +55,19 @@ func init() {
 			"ssl":  sslMode,
 		}).Info("Using individual DB variables for connection")
 		
-		// Validar que no estemos usando defaults en producción
-		if dbHost == "127.0.0.1" && dbPassword == "" {
-			log.Warn("⚠️ Using default localhost connection - check environment variables!")
+		// Validar que no estemos usando defaults en producción (Render, Railway, etc.)
+		// Si PORT está configurado (típico de Render), no deberíamos usar localhost
+		port := getEnv("PORT", "")
+		if port != "" && (dbHost == "127.0.0.1" || dbHost == "localhost") {
+			log.Error("❌ ERROR: Using localhost in production environment!")
+			log.Error("Please configure DATABASE_URL or DB_HOST, DB_USER, DB_PASSWORD, DB_NAME, DB_PORT")
+			panic("Database configuration error: localhost detected in production. Set DATABASE_URL or individual DB_* variables.")
+		}
+		
+		// Validar que tengamos password si no es localhost
+		if dbHost != "127.0.0.1" && dbHost != "localhost" && dbPassword == "" {
+			log.Error("❌ ERROR: DB_PASSWORD is required for remote database!")
+			panic("Database configuration error: DB_PASSWORD is missing for remote host.")
 		}
 		
 		// Formato DSN para PostgreSQL: host=host user=user password=password dbname=dbname port=port sslmode=mode
