@@ -74,7 +74,6 @@ jobs:
           cache-to: type=inline,mode=max
 
       - name: Trigger Render Backend Deploy (PROD)
-        environment: production
         if: steps.env.outputs.environment == 'prod'
         continue-on-error: true
         env:
@@ -168,7 +167,6 @@ jobs:
           cache-to: type=inline,mode=max
 
       - name: Trigger Render Frontend Deploy (PROD)
-        environment: production
         if: steps.env.outputs.environment == 'prod'
         continue-on-error: true
         env:
