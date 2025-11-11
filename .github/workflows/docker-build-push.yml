@@ -74,8 +74,8 @@ jobs:
           cache-to: type=inline,mode=max
 
       - name: Trigger Render Backend Deploy (PROD)
-        if: steps.env.outputs.environment == 'prod'
         environment: production
+        if: steps.env.outputs.environment == 'prod'
         continue-on-error: true
         env:
           WEBHOOK_URL: ${{ secrets.RENDER_BACKEND_WEBHOOK_URL_PROD }}
@@ -168,9 +168,9 @@ jobs:
           cache-to: type=inline,mode=max
 
       - name: Trigger Render Frontend Deploy (PROD)
+        environment: production
         if: steps.env.outputs.environment == 'prod'
         continue-on-error: true
-        environment: production
         env:
           WEBHOOK_URL: ${{ secrets.RENDER_FRONTEND_WEBHOOK_URL_PROD }}
         run: |
