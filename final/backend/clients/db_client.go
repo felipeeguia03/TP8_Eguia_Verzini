@@ -21,26 +21,82 @@ var (
 // Lee env si existen; si no, usa tus defaults locales.
 // Reintenta algunas veces para Render (DB tarda).
 func init() {
-	// Defaults (tu local)
-	dbName := getEnv("DB_NAME", "final_clj4")
-	dbUser := getEnv("DB_USER", "admin")
-	dbPassword := getEnv("DB_PASSWORD", "")
-	dbHost := getEnv("DB_HOST", "127.0.0.1")
-	portStr := getEnv("DB_PORT", "5432")
-	dbPort, err := strconv.Atoi(portStr)
-	if err != nil {
-		dbPort = 5432
+	// Debug: mostrar qué variables están disponibles
+	log.Info("🔍 Checking database configuration...")
+	databaseURL := getEnv("DATABASE_URL", "")
+	if databaseURL != "" {
+		log.Info("✅ DATABASE_URL found (length: " + fmt.Sprintf("%d", len(databaseURL)) + ")")
+	} else {
+		log.Warn("⚠️ DATABASE_URL not found")
+		log.Info("Checking individual DB variables...")
+		log.WithFields(log.Fields{
+			"DB_HOST": getEnv("DB_HOST", "NOT SET"),
+			"DB_USER": getEnv("DB_USER", "NOT SET"),
+			"DB_NAME": getEnv("DB_NAME", "NOT SET"),
+			"DB_PORT": getEnv("DB_PORT", "NOT SET"),
+			"has_password": getEnv("DB_PASSWORD", "") != "",
+		}).Info("Individual variables status")
 	}
+	
+	var dsn string
+	
+	// Si existe DATABASE_URL (Railway, Render, etc.), usarlo directamente
+	if databaseURL != "" {
+		dsn = databaseURL
+		log.Info("✅ Using DATABASE_URL for connection")
+	} else {
+		log.Warn("⚠️ DATABASE_URL not found, using individual variables")
+		// Fallback a variables individuales (compatibilidad con Render, local, etc.)
+		dbName := getEnv("DB_NAME", "final_clj4")
+		dbUser := getEnv("DB_USER", "admin")
+		dbPassword := getEnv("DB_PASSWORD", "")
+		dbHost := getEnv("DB_HOST", "127.0.0.1")
+		portStr := getEnv("DB_PORT", "5432")
+		dbPort, err := strconv.Atoi(portStr)
+		if err != nil {
+			dbPort = 5432
+		}
 
-	// SSL mode para PostgreSQL
-	sslMode := getEnv("DB_SSLMODE", "require")
-	if sslMode == "" {
-		sslMode = "require"
+		// SSL mode para PostgreSQL
+		sslMode := getEnv("DB_SSLMODE", "require")
+		if sslMode == "" {
+			sslMode = "require"
+		}
+
+		// Log de configuración (sin password) - mostrar qué variables se están usando
+		log.WithFields(log.Fields{
+			"host": dbHost,
+			"port": dbPort,
+			"user": dbUser,
+			"db":   dbName,
+			"ssl":  sslMode,
+			"has_password": dbPassword != "",
+		}).Info("Using individual DB variables for connection")
+		
+		// Validar que no estemos usando defaults en producción (Render, Railway, etc.)
+		// Si PORT está configurado (típico de Render), no deberíamos usar localhost
+		port := getEnv("PORT", "")
+		if port != "" && (dbHost == "127.0.0.1" || dbHost == "localhost") {
+			log.Error("❌ ERROR: Using localhost in production environment!")
+			log.Error("Current configuration:")
+			log.Errorf("  DB_HOST=%s (should be Railway host)", dbHost)
+			log.Errorf("  DB_USER=%s (should be Railway user)", dbUser)
+			log.Errorf("  DB_NAME=%s", dbName)
+			log.Errorf("  DB_PORT=%d", dbPort)
+			log.Error("Please configure DATABASE_URL or all DB_* variables in Render Environment Variables")
+			panic("Database configuration error: localhost detected in production. Set DATABASE_URL or individual DB_* variables.")
+		}
+
+		// Validar que tengamos password si no es localhost
+		if dbHost != "127.0.0.1" && dbHost != "localhost" && dbPassword == "" {
+			log.Error("❌ ERROR: DB_PASSWORD is required for remote database!")
+			panic("Database configuration error: DB_PASSWORD is missing for remote host.")
+		}
+
+		// Formato DSN para PostgreSQL: host=host user=user password=password dbname=dbname port=port sslmode=mode
+		dsn = fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=%s",
+			dbHost, dbUser, dbPassword, dbName, dbPort, sslMode)
 	}
-
-	// Formato DSN para PostgreSQL: host=host user=user password=password dbname=dbname port=port sslmode=mode
-	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=%s",
-		dbHost, dbUser, dbPassword, dbName, dbPort, sslMode)
 
 	const maxRetries = 10
 	var lastErr error
@@ -49,6 +105,9 @@ func init() {
 		db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 		if err == nil {
 			DBClient = db
+			// Extraer info de conexión para el log
+			dbHost := getEnv("DB_HOST", getEnv("DATABASE_URL", "unknown"))
+			dbName := getEnv("DB_NAME", getEnv("PGDATABASE", "unknown"))
 			log.WithFields(log.Fields{"host": dbHost, "db": dbName, "attempt": i}).Info("DB connected")
 			return
 		}
@@ -68,9 +127,12 @@ func StartDB() {
 		comment      dao.Comment
 		file         dao.File
 	)
+
 	if err := DBClient.AutoMigrate(&user, &course, &subscription, &comment, &file); err != nil {
 		panic(fmt.Errorf("error creating entities: %v", err))
 	}
+
+	log.Info("Database initialized")
 }
 
 func getEnv(k, def string) string {

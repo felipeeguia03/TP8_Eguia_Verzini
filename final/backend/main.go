@@ -22,6 +22,8 @@ func main() {
 		"https://webapp-tp05-front-qa-verzini-eguia-b6h9asc9g5axc6hz.chilecentral-01.azurewebsites.net":   {},
 		"https://webapp-tp05-front-prod-verzini-eguia-cjdkf2dac9g3g2as.chilecentral-01.azurewebsites.net": {},
 		"https://tp8-frontend.onrender.com": {},
+		"https://tp8-frontend-qa.onrender.com": {},
+		"https://tp8-frontend-prod.onrender.com": {},
 	}
 
 	engine := gin.New()

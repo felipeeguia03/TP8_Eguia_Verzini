@@ -3,6 +3,7 @@
 ## 📋 Resumen
 
 Tu pipeline ahora soporta **2 ambientes**:
+
 - **QA**: Branch `qa` → Despliega a servicios QA en Render
 - **PROD**: Branch `main` → Despliega a servicios PROD en Render
 
@@ -16,6 +17,7 @@ git push origin main  →  Build imagen :prod →  Deploy a Render PROD
 ## 📦 Imágenes Docker
 
 Las imágenes se etiquetan según el ambiente:
+
 - **QA**: `ghcr.io/usuario/backend:qa` y `ghcr.io/usuario/frontend:qa`
 - **PROD**: `ghcr.io/usuario/backend:prod` y `ghcr.io/usuario/frontend:prod`
 
@@ -172,12 +174,11 @@ GitHub Branches:
 
 ## 🎯 Resumen de Secrets Necesarios
 
-| Secret | Valor | Ambiente |
-|--------|-------|----------|
-| `RENDER_BACKEND_WEBHOOK_URL_QA` | Webhook de backend QA | QA |
-| `RENDER_FRONTEND_WEBHOOK_URL_QA` | Webhook de frontend QA | QA |
-| `RENDER_BACKEND_WEBHOOK_URL_PROD` | Webhook de backend PROD | PROD |
-| `RENDER_FRONTEND_WEBHOOK_URL_PROD` | Webhook de frontend PROD | PROD |
-| `NEXT_PUBLIC_API_URL_QA` | `https://tp8-backend-qa.onrender.com` | QA (opcional) |
-| `NEXT_PUBLIC_API_URL_PROD` | `https://tp8-backend.onrender.com` | PROD (opcional) |
-
+| Secret                             | Valor                                 | Ambiente        |
+| ---------------------------------- | ------------------------------------- | --------------- |
+| `RENDER_BACKEND_WEBHOOK_URL_QA`    | Webhook de backend QA                 | QA              |
+| `RENDER_FRONTEND_WEBHOOK_URL_QA`   | Webhook de frontend QA                | QA              |
+| `RENDER_BACKEND_WEBHOOK_URL_PROD`  | Webhook de backend PROD               | PROD            |
+| `RENDER_FRONTEND_WEBHOOK_URL_PROD` | Webhook de frontend PROD              | PROD            |
+| `NEXT_PUBLIC_API_URL_QA`           | `https://tp8-backend-qa.onrender.com` | QA (opcional)   |
+| `NEXT_PUBLIC_API_URL_PROD`         | `https://tp8-backend.onrender.com`    | PROD (opcional) |
