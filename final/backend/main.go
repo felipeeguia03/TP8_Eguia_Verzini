@@ -24,6 +24,8 @@ func main() {
 		"https://tp8-frontend.onrender.com": {},
 		"https://tp8-frontend-qa.onrender.com": {},
 		"https://tp8-frontend-prod.onrender.com": {},
+		"https://frontend-prod-2czt.onrender.com": {},
+		"https://backend-qa-1.onrender.com": {}, // Por si acaso hay requests desde el backend
 	}
 
 	engine := gin.New()
