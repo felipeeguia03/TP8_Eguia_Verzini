@@ -27,8 +27,9 @@ func init() {
 	databaseURL := getEnv("DATABASE_URL", "")
 	if databaseURL != "" {
 		dsn = databaseURL
-		log.Info("Using DATABASE_URL for connection")
+		log.Info("✅ Using DATABASE_URL for connection")
 	} else {
+		log.Warn("⚠️ DATABASE_URL not found, using individual variables")
 		// Fallback a variables individuales (compatibilidad con Render, local, etc.)
 		dbName := getEnv("DB_NAME", "final_clj4")
 		dbUser := getEnv("DB_USER", "admin")
@@ -45,14 +46,15 @@ func init() {
 		if sslMode == "" {
 			sslMode = "require"
 		}
-		
-		// Log de configuración (sin password)
+
+		// Log de configuración (sin password) - mostrar qué variables se están usando
 		log.WithFields(log.Fields{
 			"host": dbHost,
 			"port": dbPort,
 			"user": dbUser,
 			"db":   dbName,
 			"ssl":  sslMode,
+			"has_password": dbPassword != "",
 		}).Info("Using individual DB variables for connection")
 		
 		// Validar que no estemos usando defaults en producción (Render, Railway, etc.)
@@ -60,16 +62,21 @@ func init() {
 		port := getEnv("PORT", "")
 		if port != "" && (dbHost == "127.0.0.1" || dbHost == "localhost") {
 			log.Error("❌ ERROR: Using localhost in production environment!")
-			log.Error("Please configure DATABASE_URL or DB_HOST, DB_USER, DB_PASSWORD, DB_NAME, DB_PORT")
+			log.Error("Current configuration:")
+			log.Errorf("  DB_HOST=%s (should be Railway host)", dbHost)
+			log.Errorf("  DB_USER=%s (should be Railway user)", dbUser)
+			log.Errorf("  DB_NAME=%s", dbName)
+			log.Errorf("  DB_PORT=%d", dbPort)
+			log.Error("Please configure DATABASE_URL or all DB_* variables in Render Environment Variables")
 			panic("Database configuration error: localhost detected in production. Set DATABASE_URL or individual DB_* variables.")
 		}
-		
+
 		// Validar que tengamos password si no es localhost
 		if dbHost != "127.0.0.1" && dbHost != "localhost" && dbPassword == "" {
 			log.Error("❌ ERROR: DB_PASSWORD is required for remote database!")
 			panic("Database configuration error: DB_PASSWORD is missing for remote host.")
 		}
-		
+
 		// Formato DSN para PostgreSQL: host=host user=user password=password dbname=dbname port=port sslmode=mode
 		dsn = fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=%s",
 			dbHost, dbUser, dbPassword, dbName, dbPort, sslMode)
@@ -104,11 +111,11 @@ func StartDB() {
 		comment      dao.Comment
 		file         dao.File
 	)
-	
+
 	if err := DBClient.AutoMigrate(&user, &course, &subscription, &comment, &file); err != nil {
 		panic(fmt.Errorf("error creating entities: %v", err))
 	}
-	
+
 	log.Info("Database initialized")
 }
 
