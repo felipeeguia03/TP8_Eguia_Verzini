@@ -21,10 +21,26 @@ var (
 // Lee env si existen; si no, usa tus defaults locales.
 // Reintenta algunas veces para Render (DB tarda).
 func init() {
+	// Debug: mostrar qué variables están disponibles
+	log.Info("🔍 Checking database configuration...")
+	databaseURL := getEnv("DATABASE_URL", "")
+	if databaseURL != "" {
+		log.Info("✅ DATABASE_URL found (length: " + fmt.Sprintf("%d", len(databaseURL)) + ")")
+	} else {
+		log.Warn("⚠️ DATABASE_URL not found")
+		log.Info("Checking individual DB variables...")
+		log.WithFields(log.Fields{
+			"DB_HOST": getEnv("DB_HOST", "NOT SET"),
+			"DB_USER": getEnv("DB_USER", "NOT SET"),
+			"DB_NAME": getEnv("DB_NAME", "NOT SET"),
+			"DB_PORT": getEnv("DB_PORT", "NOT SET"),
+			"has_password": getEnv("DB_PASSWORD", "") != "",
+		}).Info("Individual variables status")
+	}
+	
 	var dsn string
 	
 	// Si existe DATABASE_URL (Railway, Render, etc.), usarlo directamente
-	databaseURL := getEnv("DATABASE_URL", "")
 	if databaseURL != "" {
 		dsn = databaseURL
 		log.Info("✅ Using DATABASE_URL for connection")
