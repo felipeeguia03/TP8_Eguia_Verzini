@@ -683,3 +683,11 @@ git push origin main
 ---
 
 **Última actualización**: Noviembre 2025
+
+
+scripts 
+./scripts/run-qa.sh
+./scripts/run-prod.sh
+./scripts/deploy-qa.sh
+
+./scripts/stop.sh
