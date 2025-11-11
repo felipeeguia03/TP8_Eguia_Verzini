@@ -23,9 +23,26 @@ function Register() {
       console.log("Registration successful, token: ", token);
       setIsRegistered(true);
       window.location.href = '/home'; 
-    } catch (error) {
+    } catch (error: any) {
       console.log(error);
-      setError('Hubo un error al crear la cuenta. Por favor, verifica los datos ingresados.');
+      // Extraer mensaje del error del backend
+      let errorMessage = 'Hubo un error al crear la cuenta. Por favor, verifica los datos ingresados.';
+      
+      if (error?.response?.status === 409) {
+        // Error 409: Usuario duplicado
+        const backendMessage = error?.response?.data?.message || '';
+        if (backendMessage.includes('email')) {
+          errorMessage = 'Este email ya está registrado. ¿Ya tienes cuenta? Intenta iniciar sesión.';
+        } else if (backendMessage.includes('nickname')) {
+          errorMessage = 'Este nombre de usuario ya está en uso. Por favor, elige otro.';
+        } else {
+          errorMessage = 'Este usuario ya existe. ¿Ya tienes cuenta? Intenta iniciar sesión.';
+        }
+      } else if (error?.response?.status === 400) {
+        errorMessage = 'Por favor, completa todos los campos correctamente.';
+      }
+      
+      setError(errorMessage);
     }
   };
 
