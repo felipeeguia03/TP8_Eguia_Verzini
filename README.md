@@ -108,6 +108,7 @@ Plataforma web para gestión de cursos online desarrollada con **Next.js** (Fron
 ```
 
 **Espacio para screenshot del diagrama de arquitectura:**
+
 <!-- [Screenshot: Diagrama de arquitectura completo] -->
 
 ---
@@ -115,26 +116,31 @@ Plataforma web para gestión de cursos online desarrollada con **Next.js** (Fron
 ## 🔄 Flujo CI/CD Completo
 
 ### 1. Desarrollo Local
+
 - Desarrollo en máquina local
 - Testing con Docker Compose
 - Commit y push a GitHub
 
 ### 2. GitHub Actions (CI)
+
 - **Trigger**: Push a `main` (PROD) o `qa` (QA)
 - **Build**: Construcción de imágenes Docker
 - **Test**: Ejecución de tests automatizados
 - **Push**: Subida de imágenes a GHCR con tags `:qa` o `:prod`
 
 ### 3. Render (CD)
+
 - **Webhook**: GitHub Actions notifica a Render
 - **Pull**: Render descarga la imagen desde GHCR
 - **Deploy**: Render despliega el contenedor
 - **Health Check**: Verificación automática de salud
 
 **Espacio para screenshot del workflow de GitHub Actions:**
+
 <!-- [Screenshot: GitHub Actions workflow ejecutándose] -->
 
 **Espacio para screenshot de Render Dashboard:**
+
 <!-- [Screenshot: Servicios desplegados en Render] -->
 
 ---
@@ -144,6 +150,7 @@ Plataforma web para gestión de cursos online desarrollada con **Next.js** (Fron
 ### Decisión: Multi-stage Build
 
 **¿Por qué?**
+
 - Reduce el tamaño final de la imagen
 - Mejora la seguridad (no incluye herramientas de build)
 - Acelera el despliegue
@@ -169,11 +176,13 @@ CMD ["./server"]
 ```
 
 **Decisiones:**
+
 - **Alpine Linux**: Imagen base ligera (~5MB)
 - **CGO_ENABLED=0**: Binario estático, no requiere librerías C
 - **Multi-stage**: Solo incluye el binario compilado
 
 **Espacio para screenshot del Dockerfile:**
+
 <!-- [Screenshot: Dockerfile del backend] -->
 
 ### Frontend Dockerfile
@@ -211,11 +220,13 @@ CMD ["node", "server.js"]
 ```
 
 **Decisiones:**
+
 - **Standalone output**: Next.js genera un servidor independiente
 - **Usuario no-root**: Mejora la seguridad
 - **Build args**: `NEXT_PUBLIC_API_URL` se pasa en build time
 
 **Espacio para screenshot del Dockerfile del frontend:**
+
 <!-- [Screenshot: Dockerfile del frontend] -->
 
 ---
@@ -225,6 +236,7 @@ CMD ["node", "server.js"]
 ### Decisión: Migrar de MySQL a PostgreSQL
 
 **¿Por qué?**
+
 1. **Railway**: Ofrece PostgreSQL gratuito con mejor rendimiento
 2. **Compatibilidad**: PostgreSQL es más estándar y compatible
 3. **Herramientas**: Mejor soporte en el ecosistema Go
@@ -233,6 +245,7 @@ CMD ["node", "server.js"]
 ### Cambios Realizados
 
 #### 1. Driver de Base de Datos
+
 ```go
 // Antes (MySQL)
 import "gorm.io/driver/mysql"
@@ -242,6 +255,7 @@ import "gorm.io/driver/postgres"
 ```
 
 #### 2. Variables de Entorno
+
 ```bash
 # Antes (MySQL)
 MYSQL_HOST=...
@@ -260,6 +274,7 @@ DB_SSLMODE=require
 ```
 
 #### 3. Connection String
+
 ```go
 // Formato PostgreSQL
 dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=%s",
@@ -267,6 +282,7 @@ dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=%s",
 ```
 
 **Espacio para screenshot de la migración:**
+
 <!-- [Screenshot: Código de migración MySQL a PostgreSQL] -->
 
 ---
@@ -276,6 +292,7 @@ dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=%s",
 ### Decisión: Stack 100% Gratuito
 
 **¿Por qué?**
+
 - **GitHub Actions**: 2000 minutos/mes gratis
 - **GitHub Container Registry**: Ilimitado y gratuito
 - **Render**: Plan free disponible
@@ -286,27 +303,32 @@ dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=%s",
 **Archivo**: `.github/workflows/docker-build-push.yml`
 
 **Características:**
+
 - Build paralelo de backend y frontend
 - Tests automatizados antes del build
 - Tagging inteligente según branch (`:qa` o `:prod`)
 - Webhooks automáticos a Render
 
 **Espacio para screenshot del workflow:**
+
 <!-- [Screenshot: Workflow de GitHub Actions] -->
 
 ### Separación de Ambientes
 
 **Branch Strategy:**
+
 - `main` → PROD (despliegue a producción)
 - `qa` → QA (despliegue a ambiente de pruebas)
 
 **Imágenes Docker:**
+
 - `ghcr.io/felipeeguia03/backend:qa` → Backend QA
 - `ghcr.io/felipeeguia03/backend:prod` → Backend PROD
 - `ghcr.io/felipeeguia03/frontend:qa` → Frontend QA
 - `ghcr.io/felipeeguia03/frontend:prod` → Frontend PROD
 
 **Espacio para screenshot de branches:**
+
 <!-- [Screenshot: Branches en GitHub] -->
 
 ---
@@ -316,6 +338,7 @@ dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=%s",
 ### Variables de Entorno
 
 #### Backend
+
 ```bash
 PORT=8080
 DATABASE_URL=postgresql://user:password@host:port/database
@@ -329,6 +352,7 @@ DB_SSLMODE=require
 ```
 
 #### Frontend
+
 ```bash
 PORT=8080
 NEXT_PUBLIC_API_URL=https://backend-prod-2hc0.onrender.com
@@ -339,17 +363,20 @@ NEXT_PUBLIC_API_URL=https://backend-prod-2hc0.onrender.com
 **Decisión**: Whitelist de orígenes permitidos
 
 **¿Por qué?**
+
 - Seguridad: Solo permite requests desde dominios conocidos
 - Flexibilidad: Fácil agregar nuevos orígenes
 - Control: Evita ataques CSRF
 
 **Orígenes configurados:**
+
 - `http://localhost:3000` (desarrollo local)
 - `https://frontend-prod-2czt.onrender.com` (Frontend PROD)
 - `https://backend-qa-1.onrender.com` (Backend QA)
 - URLs de Azure (legacy)
 
 **Espacio para screenshot de CORS config:**
+
 <!-- [Screenshot: Configuración de CORS en main.go] -->
 
 ---
@@ -365,9 +392,11 @@ NEXT_PUBLIC_API_URL=https://backend-prod-2hc0.onrender.com
 5. **files**: Archivos subidos
 
 **Espacio para screenshot del esquema de BD:**
+
 <!-- [Screenshot: Diagrama ER de la base de datos] -->
 
 **Espacio para screenshot de Railway:**
+
 <!-- [Screenshot: Bases de datos en Railway] -->
 
 ---
@@ -379,12 +408,14 @@ NEXT_PUBLIC_API_URL=https://backend-prod-2hc0.onrender.com
 **Decisión**: Dos bases de datos separadas (QA y PROD)
 
 **¿Por qué?**
+
 - Aislamiento total entre ambientes
 - Puedes resetear QA sin afectar PROD
 - Diferentes planes/recursos si es necesario
 - Más simple que usar schemas
 
 **Espacio para screenshot:**
+
 <!-- [Screenshot: Configuración de bases de datos en Railway] -->
 
 ### 2. Imágenes Docker en GHCR vs Build en Render
@@ -392,12 +423,14 @@ NEXT_PUBLIC_API_URL=https://backend-prod-2hc0.onrender.com
 **Decisión**: Usar imágenes de GHCR
 
 **¿Por qué?**
+
 - GitHub Actions ya construye y prueba
 - Render solo despliega (más rápido)
 - Separación de responsabilidades (CI construye, CD despliega)
 - Mejor control de versiones
 
 **Espacio para screenshot:**
+
 <!-- [Screenshot: Imágenes en GitHub Container Registry] -->
 
 ### 3. Health Checks
@@ -405,11 +438,13 @@ NEXT_PUBLIC_API_URL=https://backend-prod-2hc0.onrender.com
 **Decisión**: Endpoint `/healthz` en el backend
 
 **¿Por qué?**
+
 - Render puede verificar que el servicio está vivo
 - Útil para monitoreo
 - Estándar en la industria
 
 **Espacio para screenshot:**
+
 <!-- [Screenshot: Health check configurado en Render] -->
 
 ---
@@ -417,6 +452,7 @@ NEXT_PUBLIC_API_URL=https://backend-prod-2hc0.onrender.com
 ## 🔧 Configuración de Servicios
 
 ### Backend QA
+
 - **Nombre**: `backend-qa-1`
 - **URL**: `https://backend-qa-1.onrender.com`
 - **Imagen**: `ghcr.io/felipeeguia03/backend:qa`
@@ -424,9 +460,11 @@ NEXT_PUBLIC_API_URL=https://backend-prod-2hc0.onrender.com
 - **Plan**: Free
 
 **Espacio para screenshot:**
+
 <!-- [Screenshot: Configuración del backend QA en Render] -->
 
 ### Backend PROD
+
 - **Nombre**: `backend-prod-2hc0`
 - **URL**: `https://backend-prod-2hc0.onrender.com`
 - **Imagen**: `ghcr.io/felipeeguia03/backend:prod`
@@ -434,9 +472,11 @@ NEXT_PUBLIC_API_URL=https://backend-prod-2hc0.onrender.com
 - **Plan**: Starter/Standard (para más recursos)
 
 **Espacio para screenshot:**
+
 <!-- [Screenshot: Configuración del backend PROD en Render] -->
 
 ### Frontend QA
+
 - **Nombre**: `frontend-qa-xxx`
 - **URL**: `https://frontend-qa-xxx.onrender.com`
 - **Imagen**: `ghcr.io/felipeeguia03/frontend:qa`
@@ -444,9 +484,11 @@ NEXT_PUBLIC_API_URL=https://backend-prod-2hc0.onrender.com
 - **Plan**: Free
 
 **Espacio para screenshot:**
+
 <!-- [Screenshot: Configuración del frontend QA en Render] -->
 
 ### Frontend PROD
+
 - **Nombre**: `frontend-prod-2czt`
 - **URL**: `https://frontend-prod-2czt.onrender.com`
 - **Imagen**: `ghcr.io/felipeeguia03/frontend:prod`
@@ -454,6 +496,7 @@ NEXT_PUBLIC_API_URL=https://backend-prod-2hc0.onrender.com
 - **Plan**: Free
 
 **Espacio para screenshot:**
+
 <!-- [Screenshot: Configuración del frontend PROD en Render] -->
 
 ---
@@ -461,16 +504,19 @@ NEXT_PUBLIC_API_URL=https://backend-prod-2hc0.onrender.com
 ## 📝 GitHub Secrets Configurados
 
 ### Secrets para Webhooks
+
 - `RENDER_BACKEND_WEBHOOK_URL_QA`
 - `RENDER_FRONTEND_WEBHOOK_URL_QA`
 - `RENDER_BACKEND_WEBHOOK_URL_PROD`
 - `RENDER_FRONTEND_WEBHOOK_URL_PROD`
 
 ### Secrets para Frontend Build
+
 - `NEXT_PUBLIC_API_URL_QA` → `https://backend-qa-1.onrender.com`
 - `NEXT_PUBLIC_API_URL_PROD` → `https://backend-prod-2hc0.onrender.com`
 
 **Espacio para screenshot:**
+
 <!-- [Screenshot: GitHub Secrets configurados] -->
 
 ---
@@ -478,6 +524,7 @@ NEXT_PUBLIC_API_URL=https://backend-prod-2hc0.onrender.com
 ## 🚦 Flujo de Despliegue
 
 ### Para QA
+
 ```bash
 git checkout qa
 # Hacer cambios
@@ -485,13 +532,16 @@ git add .
 git commit -m "Cambios para QA"
 git push origin qa
 ```
+
 → GitHub Actions construye imagen `:qa`
 → Render despliega automáticamente
 
 **Espacio para screenshot:**
+
 <!-- [Screenshot: Deploy a QA] -->
 
 ### Para PROD
+
 ```bash
 git checkout main
 # Hacer cambios
@@ -499,10 +549,12 @@ git add .
 git commit -m "Cambios para PROD"
 git push origin main
 ```
+
 → GitHub Actions construye imagen `:prod`
 → Render despliega automáticamente
 
 **Espacio para screenshot:**
+
 <!-- [Screenshot: Deploy a PROD] -->
 
 ---
@@ -512,18 +564,23 @@ git push origin main
 ### Problemas Comunes
 
 #### 1. Error de conexión a base de datos
+
 **Solución**: Verificar que `DATABASE_URL` use `DATABASE_PUBLIC_URL` de Railway (no la interna)
 
 #### 2. Error de CORS
+
 **Solución**: Agregar la URL del frontend a `allowedOrigins` en `main.go`
 
 #### 3. Imagen no se actualiza
+
 **Solución**: Forzar nuevo deploy en Render o verificar que GitHub Actions haya construido la imagen
 
 #### 4. Variables de entorno no se leen
+
 **Solución**: Verificar que estén configuradas en Render Environment y que el servicio se haya reiniciado
 
 **Espacio para screenshot:**
+
 <!-- [Screenshot: Logs de troubleshooting] -->
 
 ---
@@ -531,15 +588,18 @@ git push origin main
 ## 📈 Métricas y Monitoreo
 
 ### Health Checks
+
 - Backend: `GET /healthz` → `{"status":"ok"}`
 - Frontend: Verificación automática por Render
 
 ### Logs
+
 - **Render**: Logs en tiempo real de cada servicio
 - **GitHub Actions**: Logs de build y tests
 - **Railway**: Logs de base de datos
 
 **Espacio para screenshot:**
+
 <!-- [Screenshot: Logs de Render] -->
 
 ---
@@ -547,21 +607,25 @@ git push origin main
 ## 🎓 Aprendizajes y Mejores Prácticas
 
 ### 1. Docker Multi-stage Build
+
 - Reduce tamaño de imágenes
 - Mejora seguridad
 - Acelera despliegues
 
 ### 2. Separación de Ambientes
+
 - QA para pruebas
 - PROD para producción
 - Bases de datos separadas
 
 ### 3. CI/CD Automatizado
+
 - Tests antes de deploy
 - Builds automáticos
 - Deploys automáticos
 
 ### 4. Variables de Entorno
+
 - Configuración por ambiente
 - Secrets seguros
 - Fácil cambio entre ambientes
@@ -582,14 +646,17 @@ git push origin main
 ## 🔗 URLs de Producción
 
 ### QA
+
 - Frontend: `https://frontend-qa-xxx.onrender.com`
 - Backend: `https://backend-qa-1.onrender.com`
 
 ### PROD
+
 - Frontend: `https://frontend-prod-2czt.onrender.com`
 - Backend: `https://backend-prod-2hc0.onrender.com`
 
 **Espacio para screenshot:**
+
 <!-- [Screenshot: Aplicación funcionando en producción] -->
 
 ---
