@@ -27,6 +27,7 @@ func init() {
 	databaseURL := getEnv("DATABASE_URL", "")
 	if databaseURL != "" {
 		dsn = databaseURL
+		log.Info("Using DATABASE_URL for connection")
 	} else {
 		// Fallback a variables individuales (compatibilidad con Render, local, etc.)
 		dbName := getEnv("DB_NAME", "final_clj4")
@@ -43,6 +44,20 @@ func init() {
 		sslMode := getEnv("DB_SSLMODE", "require")
 		if sslMode == "" {
 			sslMode = "require"
+		}
+		
+		// Log de configuración (sin password)
+		log.WithFields(log.Fields{
+			"host": dbHost,
+			"port": dbPort,
+			"user": dbUser,
+			"db":   dbName,
+			"ssl":  sslMode,
+		}).Info("Using individual DB variables for connection")
+		
+		// Validar que no estemos usando defaults en producción
+		if dbHost == "127.0.0.1" && dbPassword == "" {
+			log.Warn("⚠️ Using default localhost connection - check environment variables!")
 		}
 		
 		// Formato DSN para PostgreSQL: host=host user=user password=password dbname=dbname port=port sslmode=mode
