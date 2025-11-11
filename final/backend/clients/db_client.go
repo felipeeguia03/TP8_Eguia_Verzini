@@ -21,29 +21,34 @@ var (
 // Lee env si existen; si no, usa tus defaults locales.
 // Reintenta algunas veces para Render (DB tarda).
 func init() {
-	// Defaults (tu local)
-	dbName := getEnv("DB_NAME", "final_clj4")
-	dbUser := getEnv("DB_USER", "admin")
-	dbPassword := getEnv("DB_PASSWORD", "")
-	dbHost := getEnv("DB_HOST", "127.0.0.1")
-	portStr := getEnv("DB_PORT", "5432")
-	dbPort, err := strconv.Atoi(portStr)
-	if err != nil {
-		dbPort = 5432
-	}
-
-	// SSL mode para PostgreSQL
-	sslMode := getEnv("DB_SSLMODE", "require")
-	if sslMode == "" {
-		sslMode = "require"
-	}
-
-	// Schema para separar QA y PROD en la misma BD
-	dbSchema := getEnv("DB_SCHEMA", "public")
+	var dsn string
 	
-	// Formato DSN para PostgreSQL: host=host user=user password=password dbname=dbname port=port sslmode=mode search_path=schema
-	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=%s search_path=%s",
-		dbHost, dbUser, dbPassword, dbName, dbPort, sslMode, dbSchema)
+	// Si existe DATABASE_URL (Railway, Render, etc.), usarlo directamente
+	databaseURL := getEnv("DATABASE_URL", "")
+	if databaseURL != "" {
+		dsn = databaseURL
+	} else {
+		// Fallback a variables individuales (compatibilidad con Render, local, etc.)
+		dbName := getEnv("DB_NAME", "final_clj4")
+		dbUser := getEnv("DB_USER", "admin")
+		dbPassword := getEnv("DB_PASSWORD", "")
+		dbHost := getEnv("DB_HOST", "127.0.0.1")
+		portStr := getEnv("DB_PORT", "5432")
+		dbPort, err := strconv.Atoi(portStr)
+		if err != nil {
+			dbPort = 5432
+		}
+
+		// SSL mode para PostgreSQL
+		sslMode := getEnv("DB_SSLMODE", "require")
+		if sslMode == "" {
+			sslMode = "require"
+		}
+		
+		// Formato DSN para PostgreSQL: host=host user=user password=password dbname=dbname port=port sslmode=mode
+		dsn = fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=%s",
+			dbHost, dbUser, dbPassword, dbName, dbPort, sslMode)
+	}
 
 	const maxRetries = 10
 	var lastErr error
@@ -52,6 +57,9 @@ func init() {
 		db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 		if err == nil {
 			DBClient = db
+			// Extraer info de conexión para el log
+			dbHost := getEnv("DB_HOST", getEnv("DATABASE_URL", "unknown"))
+			dbName := getEnv("DB_NAME", getEnv("PGDATABASE", "unknown"))
 			log.WithFields(log.Fields{"host": dbHost, "db": dbName, "attempt": i}).Info("DB connected")
 			return
 		}
@@ -64,14 +72,6 @@ func init() {
 }
 
 func StartDB() {
-	// Obtener schema desde env (qa, prod, o public por defecto)
-	dbSchema := getEnv("DB_SCHEMA", "public")
-	
-	// Crear schema si no existe (usando conexión sin search_path)
-	if dbSchema != "public" {
-		DBClient.Exec(fmt.Sprintf("CREATE SCHEMA IF NOT EXISTS %s", dbSchema))
-	}
-
 	var (
 		user         dao.User
 		course       dao.Course
@@ -84,7 +84,7 @@ func StartDB() {
 		panic(fmt.Errorf("error creating entities: %v", err))
 	}
 	
-	log.WithFields(log.Fields{"schema": dbSchema}).Info("Database schema initialized")
+	log.Info("Database initialized")
 }
 
 func getEnv(k, def string) string {
